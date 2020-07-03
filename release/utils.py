@@ -3,14 +3,19 @@ import time
 import math
 import numpy as np
 import warnings
-
+from gensim.models import word2vec
+from mol2vec import features
+from mol2vec import helpers
+from mol2vec.features import mol2alt_sentence, mol2sentence, MolSentence, DfVec, sentences2vec
 from rdkit import Chem
 from rdkit import DataStructs
 from sklearn.model_selection import KFold, StratifiedKFold
-
+import pandas as pd
 
 def get_fp(smiles):
     fp = []
+    model=model = word2vec.Word2Vec.load('/content/drive/My Drive/model_300dim.pkl')
+    df = pd.DataFrame(columns=['SMILES'])
     processed_indices = []
     invalid_indices = []
     for i in range(len(smiles)):
@@ -20,8 +25,13 @@ def get_fp(smiles):
             invalid_indices.append(i)
         else:
             fp.append(tmp)
+            df= df.append({'SMILES': mol}, ignore_index=True)
             processed_indices.append(i)
-    return np.array(fp), processed_indices, invalid_indices
+    df['mol'] = df['SMILES'].apply(lambda x: Chem.MolFromSmiles(x))
+    df['sentence'] = df.apply(lambda x: MolSentence(mol2alt_sentence(x['mol'], 1)), axis=1)
+    df['mol2vec'] = [DfVec(x) for x in sentences2vec(df['sentence'], model, unseen='UNK')]
+    X = np.array([x.vec for x in df['mol2vec']])
+    return X, processed_indices, invalid_indices
 
 
 def get_desc(smiles, calc):
